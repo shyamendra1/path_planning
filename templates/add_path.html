@@ -188,13 +188,18 @@ function fillDropdown(id, data)
     const sel = document.getElementById(id);
     sel.innerHTML = "<option value=''>Select</option>";
 
+    // Debug step: See exactly how many items this specific dropdown is receiving
+    console.log(`Populating ${id} with ${data.length} items`);
+
     data.forEach(d => {
         const opt = document.createElement("option");
-        opt.value = d.name;
+        // FIX: Use d.id (or d._id) instead of d.name for the value attribute
+        opt.value = d.id || d.name; 
         opt.text = d.name;
         sel.appendChild(opt);
     });
 }
+
 
 /*---------------- FARM SELECT ----------------*/
 function onFarmChange()

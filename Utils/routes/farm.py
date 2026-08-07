@@ -69,7 +69,6 @@ def save_farm():
     #check_shape=True
     check_shape = Geodesy.verify_convex(new_farm.get('boundary'))
     if (check_shape):
-        
         try:
             if os.path.exists(FARM_FILE):
                 with open(FARM_FILE, "r") as f:
@@ -93,7 +92,29 @@ def save_farm():
             print(e)
             return jsonify({"status":"error"})
     else:
-        return jsonify({"status" : "error","message":"shape cannot be concave."})
+        try:
+            if os.path.exists(FARM_FILE):
+                with open(FARM_FILE, "r") as f:
+                    data = json.load(f)
+            else:
+                data = []
+
+            # prevent duplicate name
+            for farm in data:
+                if farm["name"] == new_farm["name"]:
+                    return jsonify({"status":"error","message":"Farm already exists"})
+
+            data.append(new_farm)
+
+            with open(FARM_FILE, "w") as f:
+                json.dump(data, f, indent=4)
+
+            return jsonify({"status":"saved"})
+
+        except Exception as e:
+            print(e)
+            return jsonify({"status":"error"})
+        ##return jsonify({"status" : "error","message":"shape cannot be concave."})
 
 @farm_bp.route("/view_farm")
 def view_farm():

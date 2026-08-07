@@ -106,8 +106,9 @@ def test_swath_width(
             )
 		
             error = abs(dist - expected_width)
+            print(error)
 
-            passed = error <= expected_width * 0.01
+            passed = error <= 0.001
 
             writer.writerow([
                 field_name,
@@ -122,8 +123,5 @@ def test_swath_width(
                 len(tracks)
             ])
 
-            assert dist == pytest.approx(
-                expected_width,
-                rel=1e-2
-            )
+            assert error <= 0.0001 #0.1mm
 

@@ -466,7 +466,7 @@ class Path_plan:
                 )
 
                 continue               
-	
+
         planner = CoveragePlanner(
                     best_headland_polygon,
                     Application_width,
@@ -491,14 +491,12 @@ class Path_plan:
         print(
             f"Selected heading: {best_heading}"
         )
-
+        area_field = Geodesy.area_of(headland_polygon)/10000
         print(f'No. of tracks: {len(tracks)}')
-        new_area = Geodesy.area_of(best_headland_polygon)
-        print(f'Area = {(new_area/10000):.3f} ha')
+        print(f'Area = {area_field:.3f} ha')
 
         return (
             tracks,
             h_gcpp,
             best_heading
         )
-
