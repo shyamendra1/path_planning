@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Saved Paths</title>
+
+<style>
+body{
+    font-family: Arial;
+    background:#f4f6f8;
+    text-align:center;
+    padding-top:40px;
+}
+
+h2{
+    margin-bottom:20px;
+}
+
+/* BUTTONS */
+.add-btn{
+    padding:12px 20px;
+    font-size:16px;
+    background:green;
+    color:white;
+    border:none;
+    border-radius:8px;
+    cursor:pointer;
+    margin:10px;
+}
+
+.back-btn{
+    padding:12px 20px;
+    font-size:16px;
+    background:gray;
+    color:white;
+    border:none;
+    border-radius:8px;
+    cursor:pointer;
+    margin:10px;
+}
+
+/* CONTAINER */
+.container{
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:center;
+}
+
+/* CARD */
+.card{
+    width:280px;
+    background:white;
+    margin:15px;
+    padding:20px;
+    border-radius:10px;
+    box-shadow:0px 0px 10px rgba(0,0,0,0.2);
+    text-align:left;
+    position:relative;
+}
+
+/* DELETE BUTTON */
+.delete-btn{
+    position:absolute;
+    top:10px;
+    right:10px;
+    background:red;
+    color:white;
+    border:none;
+    border-radius:6px;
+    padding:5px 8px;
+    cursor:pointer;
+}
+
+/* VIEW BUTTON */
+.view-btn{
+    margin-top:10px;
+    padding:10px;
+    width:100%;
+    background:blue;
+    color:white;
+    border:none;
+    border-radius:6px;
+    cursor:pointer;
+}
+.top-bar{
+    background:white;
+    padding:10px;
+    box-shadow:0px 2px 5px rgba(0,0,0,0.2);
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    position:relative;
+    margin-bottom:20px;
+}
+
+.top-bar h2{
+    margin:0;
+}
+
+.back-btn{
+    position:absolute;
+    left:10px;
+    background:gray;
+    color:white;
+    padding:8px 12px;
+    border:none;
+    border-radius:6px;
+    cursor:pointer;
+}
+</style>
+</head>
+
+<body>
+
+
+<div class="top-bar">
+    <button class="back-btn" onclick="goBack()">⬅ Back</button>
+    <h2>Saved Paths</h2>
+</div>
+
+<button class="add-btn" onclick="addPath()">➕ Add Path</button>
+<div class="container" id="pathContainer"></div>
+
+<script>
+
+/*---------------- LOAD PATHS ----------------*/
+async function loadPaths()
+{
+    const res = await fetch("/paths/get_configs");
+    const data = await res.json();
+
+    const container = document.getElementById("pathContainer");
+    container.innerHTML = "";
+
+    if(data.length === 0)
+    {
+        container.innerHTML = "<p>No saved paths</p>";
+        return;
+    }
+
+    data.forEach(p => {
+
+        const card = document.createElement("div");
+        card.className = "card";
+
+        card.innerHTML = `
+            <button class="delete-btn" onclick="deletePath('${p.name}')">X</button>
+
+            <h3>${p.name}</h3>
+
+            <p><b>🚜 Tractor:</b> ${p.tractor.name}</p>
+            <p><b>🛠️ Implement:</b> ${p.implement.name}</p>
+            <p><b>🌾 Farm:</b> ${p.farm.name}</p>
+
+            <button class="view-btn" onclick='viewPath(${JSON.stringify(p)})'>
+                View Path
+            </button>
+        `;
+
+        container.appendChild(card);
+    });
+}
+
+/*---------------- VIEW ----------------*/
+function viewPath(pathData)
+{
+    localStorage.setItem("selectedPath", JSON.stringify(pathData));
+    window.location.href = "/paths/view_path";
+}
+
+/*---------------- DELETE ----------------*/
+async function deletePath(name)
+{
+    if(!confirm("Delete " + name + " ?")) return;
+
+    const res = await fetch("/paths/delete_config",{
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({name:name})
+    });
+
+    const result = await res.json();
+
+    if(result.status === "deleted")
+        loadPaths();
+    else
+        alert("Error deleting");
+}
+
+/*---------------- NAVIGATION ----------------*/
+function goBack()
+{
+    window.location.href = "/home";
+}
+
+function addPath()
+{
+    window.location.href = "/paths/addpath";
+}
+
+/*---------------- CHECK SETUP ----------------*/
+async function checkSetup()
+{
+    const [t, f, i] = await Promise.all([
+        fetch("/tractor/get_tractors").then(r=>r.json()),
+        fetch("/farm/get_farms").then(r=>r.json()),
+        fetch("/implement/get_implements").then(r=>r.json())
+    ]);
+
+    if(t.length === 0 || f.length === 0 || i.length === 0)
+    {
+        const btn = document.querySelector(".add-btn");
+        btn.disabled = true;
+        btn.innerText = "⚠ Setup required first";
+    }
+}
+
+/*---------------- INIT ----------------*/
+checkSetup();
+loadPaths();
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Add Farm</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+<style>
+body{
+    font-family: Arial;
+    margin:0;
+    background:#f4f6f8;
+}
+
+#map{
+    height:85vh;
+    width:100%;
+}
+
+
+.top-bar{
+    padding:10px;
+    background:white;
+    box-shadow:0px 2px 5px rgba(0,0,0,0.2);
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    position:relative;
+}
+.top-bar h2{
+    margin:0;
+}
+
+.back-btn{
+    position:absolute;
+    left:10px;
+}
+input{
+    padding:10px;
+    width:200px;
+    margin:5px;
+}
+.controls{
+    background:white;
+    padding:10px;
+    text-align:center;
+    box-shadow:0px 2px 5px rgba(0,0,0,0.1);
+}
+button{
+    padding:10px 15px;
+    margin:5px;
+    border:none;
+    border-radius:6px;
+    color:white;
+    cursor:pointer;
+    width: 200px;
+}
+
+.save-btn{ background:darkgreen; }
+.back-btn{ background:gray; }
+.gps-btn{ background:blue; }
+.clear-btn{ background:red; }
+.plot-btn{background: darkviolet;}
+</style>
+</head>
+
+<body>
+
+<div class="top-bar">
+    <button class="back-btn" onclick="goBack()">⬅ Back</button>
+    <h2>🌾 Create Farm</h2>
+</div>
+
+<div class="controls">
+    <input id="farmName" placeholder="Farm Name">
+    <button class="plot-btn" onclick="startPlotting()">Plot</button>
+    <button id="trackBtn" class="gps-btn" onclick="toggleTracking()">Start Tracking</button>
+    <button class="clear-btn" onclick="clearPolygon()">Clear</button>
+    <button class="save-btn" onclick="saveFarm()">Save</button>
+
+    <div id="status"></div>
+</div>
+
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+
+/*---------------------------- MAP LOAD --------------------------------------*/
+const ACCESS_TOKEN = "pk.eyJ1Ijoic3VtaXRjaGF0dGVyamVlIiwiYSI6ImNrd2prODhoazB6enIycHBrZmRrY2FtMGkifQ.WS22x5YJykpK9aFATKT8EA";
+
+const map = L.map("map").setView([28.434635, 77.335059], 21);
+
+L.tileLayer(`https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}@2x.png?access_token=${ACCESS_TOKEN}`, {
+    maxZoom: 24,
+    tileSize: 512,
+    zoomOffset: -1,
+}).addTo(map);
+
+/*---------------------------- POLYGON LOGIC --------------------------------------*/
+let points = [];
+let markers = [];
+let polygon = null;
+let isPlotting = false;
+map.on("click", function (e) {
+
+    if (!isPlotting) return;   
+
+    const { lat, lng } = e.latlng;
+
+    points.push([lat, lng]);
+
+    const marker = L.marker([lat, lng]).addTo(map);
+    markers.push(marker);
+    drawPolygon();
+});
+function startPlotting()
+{
+    isPlotting = true;
+    document.getElementById("status").innerText = "🟢 Plotting started. Click on map";
+}
+
+function stopPlotting()
+{
+    isPlotting = false;
+}
+
+function drawPolygon() 
+{ if(polygon) map.removeLayer(polygon); 
+if(points.length >= 3) 
+{ 
+polygon = L.polygon(points, {color:"yellow"}).addTo(map); 
+
+} 
+
+}
+
+/*---------------------------- CLEAR --------------------------------------*/
+function clearPolygon()
+{
+    // Remove markers
+    markers.forEach(m => map.removeLayer(m));
+    markers = [];
+
+    // Remove polygon
+    if(polygon) {
+        map.removeLayer(polygon);
+        polygon = null;
+    }
+
+    // Clear points
+    points = [];
+}
+/*---------------------------- GPS LOCATION --------------------------------------*/
+let cur_marker=null;
+function getLocation()
+{
+    fetch("/farm/curr_loc")
+    .then(res => res.json())
+    .then(data => {
+    console.log(data);    
+    //const data = JSON.parse(e);
+    if (cur_marker){
+    map.removeLayer(cur_marker);
+    }
+    cur_marker=L.marker([data.latitude,data.longitude]).addTo(map);
+    map.setView([data.latitude,data.longitude], 19);
+    })
+
+}
+
+let isTracking = false;
+
+function toggleTracking() {
+    const btn = document.getElementById("trackBtn");
+
+    if (btn.innerText.includes("Start")) {
+        beginTracking();
+        btn.innerText = "Stop Tracking";
+        btn.style.background = "red";
+    } else {
+    stopTracking();
+        btn.innerText = "Start Tracking";
+        btn.style.background = "green";
+    }
+}
+
+
+ /*----------------------------live location connection--------------------------------------*/
+
+	let eventSource = null;
+        let latestMarker = null;
+        let livePath = L.polyline([], { color: 'blue',weight:5 }).addTo(map);
+ 
+
+        
+        const MAX_POINTS = 1000;
+        let lastPanTime = 0;
+        const PAN_INTERVAL = 2000; // ms
+        var lati;var longi; 
+        
+	function beginTracking() {
+	    if (eventSource) {
+		eventSource.close();
+	    }
+
+	    eventSource = new EventSource("/livelocation");
+
+	    isTracking = true;
+	    document.getElementById("trackBtn").innerText = "Stop Tracking";
+
+	    eventSource.onmessage = function (e) {
+		const data = JSON.parse(e.data);
+		lati = data.latitude;
+		longi = data.longitude;
+
+		if (lati != this.lati || longi != this.longi) {
+		    updateLiveLocation(data.latitude, data.longitude);
+		}
+
+		this.lati = lati;
+		this.longi = longi;
+	    };
+
+	    eventSource.onerror = function (e) {
+		console.error("Stream error:", e);
+		stopTracking();   // ✅ this will also reset button
+	    };
+	}
+
+        // Stop streaming
+	function stopTracking() {
+	    if (eventSource) {
+		eventSource.close();
+		eventSource = null;
+		console.log("Tracking stopped.");
+	    }
+
+	    isTracking = false;
+	    document.getElementById("trackBtn").innerText = "Start Tracking";
+
+	    fetch('/stop')
+		.then(response => response.json())
+		.then(data => {
+		    console.log('GET response:', data);
+		})
+		.catch(error => {
+		    console.error('Error:', error);
+		});
+	}
+
+        // Limit points in polyline
+        function updateLiveLocation(latitude, longitude, line_color) {
+            if (!latitude || !longitude) return;
+
+            const latLng = [latitude, longitude];
+          
+            let latLngs = livePath.getLatLngs();
+            latLngs.push(latLng);
+            if (latLngs.length > MAX_POINTS) {
+                latLngs.shift();
+            }
+            livePath.setLatLngs(latLngs);
+
+            if (latestMarker) {
+                map.removeLayer(latestMarker);
+            }
+            latestMarker = L.marker(latLng).addTo(map);
+
+           const now = Date.now();
+            if (now - lastPanTime > PAN_INTERVAL) {
+                map.setView(latLng, 22);
+                lastPanTime = now;
+            }
+        }
+
+/*---------------------------- SAVE --------------------------------------*/
+async function saveFarm()
+{
+    const name = document.getElementById("farmName").value.trim();
+    const status = document.getElementById("status");
+
+    if(!name)
+    {
+        status.innerHTML = "❌ Farm name required";
+        return;
+    }
+
+    if(points.length < 3)
+    {
+        status.innerHTML = "❌ Select at least 3 points";
+        return;
+    }
+
+    const data = {
+        name: name,
+        boundary: points
+    };
+
+    const response = await fetch("/farm/save_farm",{
+        method:"POST",
+        headers:{
+            "Content-Type":"application/json"
+        },
+        body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+
+    if(result.status === "saved")
+    {
+        status.innerHTML = "✅ Saved";
+
+        setTimeout(()=>{
+            window.location.href = "/farm/home"
+        },1000);
+    }
+    else
+    {
+        status.innerHTML = "❌ " + result.message;
+    }
+}
+
+/*---------------------------- BACK --------------------------------------*/
+function goBack()
+{   stopTracking();
+    window.location.href = "/farm/home";
+}
+
+</script>
+
+</body>
+</html>

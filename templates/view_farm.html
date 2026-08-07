@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>View Farm</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+<style>
+body{
+    font-family: Arial;
+    margin:0;
+    background:#f4f6f8;
+}
+
+#map{
+    height:80vh;
+    width:100%;
+}
+
+button{
+    padding:10px 15px;
+    margin:5px;
+    border:none;
+    border-radius:6px;
+    color:white;
+    cursor:pointer;
+}
+
+.back-btn{
+    background:gray;
+    position:absolute;
+    left:10px;  
+}
+.info{
+    font-size:18px;
+    font-weight:bold;
+}
+
+.top-bar{
+    background:white;
+    padding:10px;
+    box-shadow:0px 2px 5px rgba(0,0,0,0.2);
+
+    display:flex;
+    align-items:center;
+    justify-content:center; /* center content */
+    position:relative;      /* allow absolute positioning */
+}
+.top-bar{
+    height:60px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="top-bar">
+    <div style="width:80px;"></div> <!-- spacer -->
+    <div class="info" id="farmName"></div>
+    <button class="back-btn" onclick="goBack()">⬅ Back</button>
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+
+/*---------------- MAP INIT ----------------*/
+const ACCESS_TOKEN = "pk.eyJ1Ijoic3VtaXRjaGF0dGVyamVlIiwiYSI6ImNrd2prODhoazB6enIycHBrZmRrY2FtMGkifQ.WS22x5YJykpK9aFATKT8EA";
+
+const map = L.map("map").setView([28.436, 77.304], 18);
+
+L.tileLayer(`https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}@2x.png?access_token=${ACCESS_TOKEN}`, {
+    maxZoom: 24,
+    tileSize: 512,
+    zoomOffset: -1,
+}).addTo(map);
+
+let polygon = null;
+
+/*---------------- LOAD FARM ----------------*/
+async function loadFarm()
+{
+    const selectedName = localStorage.getItem("selectedFarm");
+
+    const response = await fetch("/farm/get_farms");
+    const farms = await response.json();
+
+    const farm = farms.find(f => f.name === selectedName);
+
+    if(!farm)
+    {
+        alert("Farm not found");
+        return;
+    }
+
+    document.getElementById("farmName").innerHTML = "🌾 " + farm.name;
+
+    drawFarm(farm.boundary);
+}
+
+/*---------------- DRAW POLYGON ----------------*/
+function drawFarm(points)
+{
+    if(polygon) map.removeLayer(polygon);
+
+    polygon = L.polygon(points, {
+        color: "yellow",
+        weight: 3
+    }).addTo(map);
+
+    // Fit map to polygon
+    map.fitBounds(polygon.getBounds());
+}
+
+/*---------------- BACK ----------------*/
+function goBack()
+{
+    window.location.href = "/farm";
+}
+
+/*---------------- INIT ----------------*/
+loadFarm();
+
+</script>
+
+</body>
+</html>

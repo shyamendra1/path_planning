@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Tractor Setup</title>
+
+<style>
+body{
+    font-family: Arial;
+    background:#f4f6f8;
+    text-align:center;
+    padding-top:60px;
+}
+
+.container{
+    width:400px;
+    margin:auto;
+    background:white;
+    padding:30px;
+    border-radius:10px;
+    box-shadow:0px 0px 10px rgba(0,0,0,0.2);
+}
+
+input{
+    width:90%;
+    padding:12px;
+    margin:10px;
+    font-size:16px;
+}
+
+button{
+    width:150px;
+    padding:12px;
+    font-size:16px;
+    border:none;
+    border-radius:8px;
+    color:white;
+    cursor:pointer;
+}
+
+.save-btn{
+    background:green;
+}
+
+.back-btn{
+    background:#7f8c8d;
+    margin-bottom:10px;
+}
+
+.status{
+    margin-top:15px;
+    font-size:16px;
+}
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<h2>🚜 Tractor Configuration</h2>
+
+<input id="name" placeholder="Tractor Name"><br>
+<input id="wheelbase" placeholder="Wheelbase (m)"><br>
+<input id="radius" placeholder="Turning Radius (m)"><br>
+
+<button class="back-btn" onclick="goBack()">⬅ Back</button>
+<button class="save-btn" onclick="saveTractor()">Save</button>
+
+<div class="status" id="status"></div>
+
+</div>
+
+<script>
+
+function goBack()
+{
+    window.location.href = "/tractor/home"
+}
+
+async function saveTractor()
+{
+    const name = document.getElementById("name").value.trim()
+    const wheelbase = document.getElementById("wheelbase").value.trim()
+    const radius = document.getElementById("radius").value.trim()
+
+    const status = document.getElementById("status")
+
+    // -------- VALIDATION ----------
+    if(!name || !wheelbase || !radius)
+    {
+        status.innerHTML = "❌ All fields are required"
+        return
+    }
+
+    if(isNaN(wheelbase) || isNaN(radius))
+    {
+        status.innerHTML = "❌ Wheelbase & Turning Radius must be numbers"
+        return
+    }
+
+    if(parseFloat(wheelbase) <= 0 || parseFloat(radius) <= 0)
+    {
+        status.innerHTML = "❌ Values must be positive"
+        return
+    }
+
+    const data = {
+        name: name,
+        wheelbase: parseFloat(wheelbase),
+        radius: parseFloat(radius)
+    }
+
+    const response = await fetch("/tractor/save_tractor",{
+        method:"POST",
+        headers:{
+            "Content-Type":"application/json"
+        },
+        body: JSON.stringify(data)
+    })
+
+    const result = await response.json()
+
+    if(result.status === "saved")
+    {
+        status.innerHTML = "✅ Saved Successfully"
+
+        // 🔁 Auto return after 1 second
+        setTimeout(() => {
+            window.location.href = "/tractor/home"
+        }, 1000)
+    }
+    else
+    {
+        status.innerHTML = "❌ " + result.message
+    }
+}
+
+</script>
+
+</body>
+</html>

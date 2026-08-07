@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>NTRIP Client Setup</title>
+
+<style>
+
+body{
+    font-family: Arial;
+    background:#f2f2f2;
+    text-align:center;
+    padding-top:40px;
+}
+
+.container{
+    width:400px;
+    margin:auto;
+    background:white;
+    padding:30px;
+    border-radius:10px;
+    box-shadow:0px 0px 10px rgba(0,0,0,0.2);
+}
+
+input{
+    width:90%;
+    padding:10px;
+    margin:8px;
+    font-size:16px;
+}
+
+button{
+    width:120px;
+    padding:12px;
+    margin:10px;
+    font-size:16px;
+    border:none;
+    border-radius:8px;
+    cursor:pointer;
+}
+
+.connect{
+    background:green;
+    color:white;
+}
+
+.disconnect{
+    background:red;
+    color:white;
+}
+
+.status{
+    margin-top:20px;
+    font-size:18px;
+}
+.top-bar{
+    background:white;
+    padding:10px;
+    box-shadow:0px 2px 5px rgba(0,0,0,0.2);
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    position:relative;
+    margin-bottom:20px;
+}
+
+.back-btn{
+    position:absolute;
+    left:10px;
+    padding:8px 12px;
+    background:gray;
+    color:white;
+    border:none;
+    border-radius:6px;
+    cursor:pointer;
+}
+</style>
+</head>
+
+<body>
+<div class="top-bar">
+    <h2>NTRIP Client Setup</h2>
+    <button class="back-btn" onclick="goBack()">⬅ Back</button>
+</div>
+<div class="container">
+
+
+
+<input id="host" placeholder="Caster Host (IP)">
+<br>
+
+<input id="port" placeholder="Port">
+<br>
+
+<button onclick="getMountpoints()">Get Source Table</button>
+
+<select id="mountpoint"></select>
+
+<br>
+
+<input id="username" placeholder="Username">
+<br>
+
+<input id="password" type="password" placeholder="Password">
+<br>
+
+<button class="connect" onclick="connectNtrip()">Connect</button>
+<button class="disconnect" onclick="disconnectNtrip()">Disconnect</button>
+
+<div class="status" id="status">Status: Not Connected</div>
+
+</div>
+
+
+<script>
+async function getMountpoints()
+{
+    const host = document.getElementById("host").value
+    const port = document.getElementById("port").value
+
+    const response = await fetch("/ntrip/get_mountpoints",{
+        method:"POST",
+        headers:{
+            "Content-Type":"application/json"
+        },
+        body: JSON.stringify({host:host,port:port})
+    })
+
+    const data = await response.json()
+
+    const dropdown = document.getElementById("mountpoint")
+    dropdown.innerHTML=""
+
+    data.mountpoints.forEach(mp=>{
+        const option = document.createElement("option")
+        option.text = mp
+        option.value = mp
+        dropdown.add(option)
+    })
+}
+async function connectNtrip()
+{
+    const data = {
+        host: document.getElementById("host").value,
+        port: document.getElementById("port").value,
+        mountpoint: document.getElementById("mountpoint").value,
+        username: document.getElementById("username").value,
+        password: document.getElementById("password").value
+    }
+
+    const response = await fetch("/ntrip/connect_ntrip",{
+        method:"POST",
+        headers:{
+            "Content-Type":"application/json"
+        },
+        body: JSON.stringify(data)
+    })
+
+    const result = await response.json()
+
+    if(result.status === "connected")
+        document.getElementById("status").innerHTML="Status: Connected"
+    else
+        document.getElementById("status").innerHTML="Status: Failed"
+}
+
+
+async function disconnectNtrip()
+{
+    const response = await fetch("/ntrip/disconnect_ntrip")
+
+    const result = await response.json()
+
+    document.getElementById("status").innerHTML="Status: Disconnected"
+}
+function goBack()
+{
+    window.location.href = "/check"; 
+}
+
+</script>
+
+</body>
+</html>

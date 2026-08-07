@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Tractor List</title>
+
+<style>
+body{
+    font-family: Arial;
+    background:#f4f6f8;
+    text-align:center;
+    padding-top:40px;
+}
+
+.add-btn{
+    padding:12px 20px;
+    font-size:16px;
+    background:green;
+    color:white;
+    border:none;
+    border-radius:8px;
+    cursor:pointer;
+    margin-bottom:20px;
+}
+
+.container{
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:center;
+}
+
+.card{
+    width:250px;
+    background:white;
+    margin:15px;
+    padding:20px;
+    border-radius:10px;
+    box-shadow:0px 0px 10px rgba(0,0,0,0.2);
+    text-align:left;
+    position:relative;
+}
+
+.delete-btn{
+    position:absolute;
+    top:10px;
+    right:10px;
+    background:red;
+    color:white;
+    border:none;
+    border-radius:6px;
+    padding:5px 8px;
+    cursor:pointer;
+    font-size:12px;
+}
+.back-btn{ background:gray; }
+button{
+    padding:10px 15px;
+    margin:5px;
+    border:none;
+    border-radius:6px;
+    color:white;
+    cursor:pointer;
+}
+
+.top-bar{
+    background:white;
+    padding:10px;
+    box-shadow:0px 2px 5px rgba(0,0,0,0.2);
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    position:relative;
+    margin-bottom:20px;
+}
+
+.top-bar h2{
+    margin:0;
+}
+
+.back-btn{
+    position:absolute;
+    left:10px;   /* ✅ LEFT SIDE */
+    background:gray;
+    color:white;
+    padding:8px 12px;
+    border:none;
+    border-radius:6px;
+    cursor:pointer;
+}
+</style>
+</head>
+
+<body>
+<div class="top-bar">
+    <button class="back-btn" onclick="goBack()">⬅ Back</button>
+    <h2>🚜 Tractors</h2>
+</div>
+
+<button class="add-btn" onclick="addTractor()">+ Add Tractor</button>
+
+<div class="container" id="tractorContainer"></div>
+
+<script>
+
+function addTractor()
+{
+    window.location.href = "/tractor/addtractor"
+}
+
+function goBack()
+{
+    window.location.href = "/home";
+}
+
+async function loadTractors()
+{
+    const response = await fetch("/tractor/get_tractors")
+    const data = await response.json()
+
+    const container = document.getElementById("tractorContainer")
+    container.innerHTML = ""
+
+    if(data.length === 0)
+    {
+        container.innerHTML = "<p>No tractors saved</p>"
+        return
+    }
+
+    data.forEach(tr => {
+
+        const card = document.createElement("div")
+        card.className = "card"
+
+        card.innerHTML = `
+            <button class="delete-btn" onclick="deleteTractor('${tr.name}')">X</button>
+            <h3>${tr.name}</h3>
+            <p><b>Wheelbase:</b> ${tr.wheelbase} m</p>
+            <p><b>Turning Radius:</b> ${tr.radius} m</p>
+        `
+
+        container.appendChild(card)
+    })
+}
+
+async function deleteTractor(name)
+{
+    if(!confirm("Delete " + name + " ?")) return
+
+    const response = await fetch("/tractor/delete_tractor",{
+        method:"POST",
+        headers:{
+            "Content-Type":"application/json"
+        },
+        body: JSON.stringify({name:name})
+    })
+
+    const result = await response.json()
+
+    if(result.status === "deleted")
+    {
+        loadTractors()  // 🔁 refresh UI
+    }
+    else
+    {
+        alert("Error deleting")
+    }
+}
+
+// Load on start
+loadTractors()
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Main Dashboard</title>
+
+<style>
+
+body{
+    font-family: Arial;
+    background:#f4f6f8;
+    text-align:center;
+    padding-top:80px;
+}
+
+h2{
+    margin-bottom:40px;
+}
+
+.container{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+}
+
+button{
+    width:280px;
+    height:70px;
+    margin:12px;
+    font-size:20px;
+    border:none;
+    border-radius:12px;
+    background:#2c3e50;
+    color:white;
+    cursor:pointer;
+    transition:0.3s;
+}
+
+button:hover{
+    background:#34495e;
+    transform:scale(1.05);
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h2>Control Panel</h2>
+
+<div class="container">
+
+<button onclick="navigate('tractor')">🚜 Tractor Data</button>
+
+<button onclick="navigate('implement')">🛠️ Implement Data</button>
+
+<button onclick="navigate('farm')">🌾 Farm Data</button>
+
+<button onclick="navigate('paths')">🧭 Path Data</button>
+
+<button onclick="navigate('check')">⬅ Back</button>
+
+</div>
+
+<script>
+
+function navigate(page)
+{
+    window.location.href = "/" + page
+}
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Implement Setup</title>
+
+<style>
+body{
+    font-family: Arial;
+    background:#f4f6f8;
+    text-align:center;
+    padding-top:60px;
+}
+
+.container{
+    width:400px;
+    margin:auto;
+    background:white;
+    padding:30px;
+    border-radius:10px;
+    box-shadow:0px 0px 10px rgba(0,0,0,0.2);
+}
+
+input, select{
+    width:90%;
+    padding:12px;
+    margin:10px;
+    font-size:16px;
+}
+
+button{
+    width:150px;
+    padding:12px;
+    font-size:16px;
+    border:none;
+    border-radius:8px;
+    color:white;
+    cursor:pointer;
+}
+
+.save-btn{
+    background:green;
+}
+
+.back-btn{
+    background:#7f8c8d;
+    margin-bottom:10px;
+}
+
+.status{
+    margin-top:15px;
+    font-size:16px;
+}
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<h2>🛠️ Implement Configuration</h2>
+
+<select id="type">
+    <option value="">Select Implement Type</option>
+    <option value="Rotavator">Rotavator</option>
+    <option value="Cultivator">Cultivator</option>
+</select>
+
+<input id="name" placeholder="Implement Name"><br>
+<input id="width" placeholder="Implement Width (m)"><br>
+
+<button class="back-btn" onclick="goBack()">⬅ Back</button>
+<button class="save-btn" onclick="saveImplement()">Save</button>
+
+<div class="status" id="status"></div>
+
+</div>
+
+<script>
+
+function goBack()
+{
+    window.location.href = "/implement/home"
+}
+
+async function saveImplement()
+{
+    const type = document.getElementById("type").value
+    const name = document.getElementById("name").value.trim()
+    const width = document.getElementById("width").value.trim()
+
+    const status = document.getElementById("status")
+
+    // -------- VALIDATION ----------
+    if(!type || !name || !width)
+    {
+        status.innerHTML = "❌ All fields are required"
+        return
+    }
+
+    if(isNaN(width))
+    {
+        status.innerHTML = "❌ Width must be a number"
+        return
+    }
+
+    if(parseFloat(width) <= 0)
+    {
+        status.innerHTML = "❌ Width must be positive"
+        return
+    }
+
+    const data = {
+        type: type,
+        name: name,
+        width: parseFloat(width)
+    }
+
+    const response = await fetch("/implement/save_implement",{
+        method:"POST",
+        headers:{
+            "Content-Type":"application/json"
+        },
+        body: JSON.stringify(data)
+    })
+
+    const result = await response.json()
+
+    if(result.status === "saved")
+    {
+        status.innerHTML="✅ Saved Successfully"
+
+        // 🔁 Auto return after 1 sec
+        setTimeout(() => {
+            window.location.href = "/implement/home"
+        }, 1000)
+    }
+    else
+    {
+        status.innerHTML="❌ " + result.message
+    }
+}
+
+</script>
+
+</body>
+</html>

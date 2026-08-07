@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>View Path</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+<style>
+#map{
+    height:90vh;
+    width:70%;
+}
+
+#datadash{
+    width:25%;
+    background:#111;
+    color:white;
+    padding:15px;
+    border-radius:10px;
+}
+
+.dash-title{
+    text-align:center;
+    margin-bottom:20px;
+}
+
+.data-row{
+    display:flex;
+    justify-content:space-between;
+    padding:10px;
+    margin:8px 0;
+    background:#1e1e1e;
+    border-radius:6px;
+    font-size:16px;
+}
+
+.data-row span:first-child{
+    color:#aaa;
+}
+
+.data-row span:last-child{
+    font-weight:bold;
+    color:#00ffcc;
+}
+
+.top-bar{
+    background:white;
+    padding:10px;
+    box-shadow:0px 2px 5px rgba(0,0,0,0.2);
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    position:relative;
+}
+
+.top-bar h2{
+    margin:0;
+}
+
+/* Controls row */
+.controls{
+    background:white;
+    padding:10px;
+    text-align:center;
+    box-shadow:0px 2px 5px rgba(0,0,0,0.1);
+}
+
+button{
+    margin:8px;
+    padding:10px 15px;
+    border:none;
+    border-radius:6px;
+    color:white;
+    cursor:pointer;
+    width:200px;
+}
+.back-btn{
+    position:absolute;
+    left:10px;
+    background:gray;
+    color:white;
+    padding:8px 12px;
+    border:none;
+    border-radius:6px;
+    cursor:pointer;
+    width: auto;
+}
+.container {
+  display: flex;
+  
+  justify-content: space-around; 
+}
+
+
+/* Button colors */
+.track-btn{ background:green; }
+.op-btn{ background:blue; }
+</style>
+</head>
+
+<body>
+
+<div class="top-bar">
+    <button class="back-btn" onclick="goBack()">⬅ Back</button>
+    <h2>Saved Path</h2>
+</div>
+
+<div class="controls">
+    <button id="trackBtn" class="track-btn" onclick="toggleTracking()">Start Tracking</button>
+    <button id="opBtn" class="op-btn" onclick="toggleOperation()">Start Operation</button>
+</div>
+
+<div class="container">
+<div id="map"></div>
+<div id="datadash">
+
+    <h3 class="dash-title">Data Dashboard</h3>
+
+    <div class="data-row">
+        <span>Latitude</span>
+        <span id="lat">--</span>
+    </div>
+
+    <div class="data-row">
+        <span>Longitude</span>
+        <span id="lon">--</span>
+    </div>
+
+    <div class="data-row">
+        <span>Speed</span>
+        <span id="speed">--</span>
+    </div>
+
+    <div class="data-row">
+        <span>Heading</span>
+        <span id="heading">--</span>
+    </div>
+
+</div>
+</div>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+
+/*---------------- MAP INIT ----------------*/
+const ACCESS_TOKEN = "pk.eyJ1Ijoic3VtaXRjaGF0dGVyamVlIiwiYSI6ImNrd2prODhoazB6enIycHBrZmRrY2FtMGkifQ.WS22x5YJykpK9aFATKT8EA";
+
+const map = L.map("map").setView([28.436, 77.304], 18);
+
+L.tileLayer(`https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}@2x.png?access_token=${ACCESS_TOKEN}`, {
+    maxZoom: 24,
+    tileSize: 512,
+    zoomOffset: -1,
+}).addTo(map);
+
+const data = JSON.parse(localStorage.getItem("selectedPath"));
+
+/* FARM */
+const farmPoly = L.polygon(data.farm.boundary, {color:"yellow"}).addTo(map);
+
+/* PATH */
+const pathLine = L.polyline(data.path, {color:"red"}).addTo(map);
+console.log(data.path[0]);
+L.marker(data.path[0]).addTo(map);
+map.fitBounds(farmPoly.getBounds());
+
+function goBack()
+{
+stopOp();
+stopTracking();
+    window.location.href = "/paths";
+}
+
+let isTracking = false;
+
+function toggleTracking() {
+    const btn = document.getElementById("trackBtn");
+
+    if (btn.innerText.includes("Start")) {
+        beginTracking();
+        btn.innerText = "Stop Tracking";
+        btn.style.background = "red";
+    } else {
+    stopTracking();
+        btn.innerText = "Start Tracking";
+        btn.style.background = "green";
+    }
+}
+
+
+function updateDashboard(data)
+{
+    document.getElementById("lat").innerText = data.latitude?.toFixed(6) || "--";
+    document.getElementById("lon").innerText = data.longitude?.toFixed(6) || "--";
+    document.getElementById("speed").innerText = data.Speed || "--";
+    document.getElementById("heading").innerText = data.Head || "--";
+}
+
+
+ /*----------------------------live location connection--------------------------------------*/
+
+	let eventSource = null;
+        let latestMarker = null;
+        let livePath = L.polyline([], { color: 'blue',weight:5 }).addTo(map);
+ 
+
+        
+        const MAX_POINTS = 1000;
+        let lastPanTime = 0;
+        const PAN_INTERVAL = 2000; // ms
+        var lati;var longi; 
+        
+	function beginTracking() {
+	    if (eventSource) {
+		eventSource.close();
+	    }
+
+	    eventSource = new EventSource("/livelocation");
+
+	    isTracking = true;
+	    document.getElementById("trackBtn").innerText = "Stop Tracking";
+
+	    eventSource.onmessage = function (e) {
+		const data = JSON.parse(e.data);
+		lati = data.latitude;
+		longi = data.longitude;
+
+		if (lati != this.lati || longi != this.longi) {
+		    updateLiveLocation(data.latitude, data.longitude);
+		    updateDashboard(data);
+		  	}
+                
+		this.lati = lati;
+		this.longi = longi;
+	    };
+
+	    eventSource.onerror = function (e) {
+		console.error("Stream error:", e);
+		stopTracking();   // ✅ this will also reset button
+	    };
+	}
+
+        // Stop streaming
+	function stopTracking() {
+	    if (eventSource) {
+		eventSource.close();
+		eventSource = null;
+		console.log("Tracking stopped.");
+	    }
+
+	    isTracking = false;
+	    document.getElementById("trackBtn").innerText = "Start Tracking";
+
+	    fetch('/stop')
+		.then(response => response.json())
+		.then(data => {
+		    console.log('GET response:', data);
+		})
+		.catch(error => {
+		    console.error('Error:', error);
+		});
+	}
+
+        // Limit points in polyline
+        function updateLiveLocation(latitude, longitude, line_color) {
+            if (!latitude || !longitude) return;
+
+            const latLng = [latitude, longitude];
+          
+            let latLngs = livePath.getLatLngs();
+            latLngs.push(latLng);
+            if (latLngs.length > MAX_POINTS) {
+                latLngs.shift();
+            }
+            livePath.setLatLngs(latLngs);
+
+            if (latestMarker) {
+                map.removeLayer(latestMarker);
+            }
+            latestMarker = L.marker(latLng).addTo(map);
+
+           const now = Date.now();
+            if (now - lastPanTime > PAN_INTERVAL) {
+                map.setView(latLng, 22);
+                lastPanTime = now;
+            }
+        }
+
+//----------------------------------start/stop operation --------------------------------
+let isOperating = false;
+
+async function toggleOperation() {
+    const btn = document.getElementById("opBtn");
+
+    if (btn.innerText.includes("Start")) {
+
+        const success = await saveDataToBackend();
+
+        if (!success) {
+            alert("❌ Save failed. Operation not started.");
+            return;
+        }
+
+        beginOp();
+
+        btn.innerText = "Stop Operation";
+        btn.style.background = "red";
+
+    } else {
+
+        stopOp();
+
+        btn.innerText = "Start Operation";
+        btn.style.background = "blue";
+    }
+}
+
+async function saveDataToBackend()
+{
+    const data = JSON.parse(localStorage.getItem("selectedPath"));
+
+    try {
+        const res = await fetch("/save_data_points", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(data)
+        });
+
+        const result = await res.json();
+
+        return result.status === "saved";  
+
+    } catch (err) {
+        console.error(err);
+        return false;
+    }
+}
+function beginOp(){
+    isOperating = true;
+
+    fetch('/startop')
+    .then(response => response.json())
+    .then(data => console.log('GET response:', data))
+    .catch(error => console.error('Error:', error));
+}
+
+
+        // Stop streaming
+function stopOp() {
+	   
+	isOperating = false;
+	document.getElementById("opBtn").innerText = "Start Operation";
+
+	fetch('/stopop')
+	.then(response => response.json())
+	.then(data => {
+	console.log('GET response:', data);
+	})
+	.catch(error => {
+	console.error('Error:', error);
+	});
+}
+ 
+
+
+
+</script>
+
+</body>
+</html>

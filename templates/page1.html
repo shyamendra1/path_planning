@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <title>Map</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
+
+    <style>
+        body {
+            background-color: #343434;
+            color: #fff;
+            margin: 0;
+            padding: 0;
+        }
+        #map {
+            position: absolute;
+            height: 100%;
+            width: 100%;
+            z-index: 1;
+        }
+        #header {
+            position: sticky;
+            z-index: 2;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 50px;
+            background-color: #00000050;
+            color: white;
+            padding: 10px;
+        }
+        button {
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="header">
+        <h1>Test Data Points</h1>
+        <div>
+            <button onclick="beginTracking()">Begin</button>
+            <button onclick="stopTracking()">Stop</button>
+            <button onclick="fetchReq()">Plot</button>
+            <button onclick="displayPath()">Display path</button>
+        </div>
+    </div>
+    
+    <div id="map"></div>
+    
+
+    <script>
+        /*----------------------------load map--------------------------------------*/
+        const ACCESS_TOKEN = "pk.eyJ1Ijoic3VtaXRjaGF0dGVyamVlIiwiYSI6ImNrd2prODhoazB6enIycHBrZmRrY2FtMGkifQ.WS22x5YJykpK9aFATKT8EA";
+        
+        // Initialize the map
+        const map = L.map("map").setView([28.436, 77.304], 19);
+        L.tileLayer(`https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}@2x.png?access_token=${ACCESS_TOKEN}`, {
+            maxZoom: 24,
+            tileSize: 512,
+            zoomOffset: -1,
+        }).addTo(map);
+
+        let eventSource = null;
+        let latestMarker = null;
+        let livePath = L.polyline([], { color: 'blue',weight:5 }).addTo(map);
+ 
+
+        
+        const MAX_POINTS = 1000;
+        let lastPanTime = 0;
+        const PAN_INTERVAL = 2000; // ms
+
+        // Click to drop manual markers
+        var arr=[];
+        map.on("click", function (e) {
+            const { lat, lng } = e.latlng;
+            console.log("Clicked at:", lat, lng);
+            L.marker([lat, lng]).addTo(map);
+            arr.push(e.latlng);
+            
+        });
+        
+           /*----------------------------live location connection--------------------------------------*/
+
+        // Start streaming data
+        let filtpath = L.polyline([],{color: 'green'}).addTo(map);
+        var latk; var lonk;
+        
+        var lati;var longi; 
+        function beginTracking() {
+            if (eventSource) {
+                eventSource.close();
+            }
+
+            eventSource = new EventSource("/livelocation");
+
+            eventSource.onmessage = function (e) {
+                const data = JSON.parse(e.data);
+                lati=data.latitude;
+                longi=data.longitude;
+               //latk = data.latk; lonk=data.lonk;
+                if(lati!=this.lati || longi!=this.longi){
+                
+                updateLiveLocation(data.latitude, data.longitude);
+                
+                }
+                this.lati=lati;
+                this.longi=longi;
+              /* if (latk!=this.latk || lonk!=this.lonk){
+                updateFiltLocation(data.latk, data.lonk);
+}*/
+
+
+               //this.latk=latk;
+               //this.lonk=lonk;
+            };
+
+            eventSource.onerror = function (e) {
+                console.error("Stream error:", e);
+                stopTracking();
+            };
+        }
+
+        // Stop streaming
+        function stopTracking() {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+                console.log("Tracking stopped.");
+            }
+            
+            fetch('/stop')
+      		.then(response => response.json())
+      		.then(data => {
+       			 console.log('GET response:', data);
+        
+      		})
+      		.catch(error => {
+       			 console.error('Error:', error);
+      		});
+        	}
+
+        // Limit points in polyline
+        function updateLiveLocation(latitude, longitude, line_color) {
+            if (!latitude || !longitude) return;
+
+            const latLng = [latitude, longitude];
+           // console.log(latLng);
+            // Sliding window to avoid memory bloat
+            let latLngs = livePath.getLatLngs();
+            latLngs.push(latLng);
+            if (latLngs.length > MAX_POINTS) {
+                latLngs.shift();
+            }
+            livePath.setLatLngs(latLngs);
+           
+
+            // Update marker
+            if (latestMarker) {
+                map.removeLayer(latestMarker);
+            }
+            latestMarker = L.marker(latLng).addTo(map);
+
+            // Throttle map panning
+           const now = Date.now();
+            if (now - lastPanTime > PAN_INTERVAL) {
+                map.setView(latLng, 19);
+                lastPanTime = now;
+            }
+        }
+
+        
+        //mark kalman location
+        function updateFiltLocation(latitude, longitude){
+          if(!latitude||!longitude) return;
+         const filtdata=[latitude,longitude];
+         //console.log(filtdata);
+         let latlngs=filtpath.getLatLngs();
+         latlngs.push(filtdata);
+         if (latlngs.length>MAX_POINTS){
+             latlngs.shift();
+}
+          filtpath.setLatLngs(latlngs);
+}
+        
+        /*----------------------------path plan connection--------------------------------------*/
+        
+        dataToBeSent=[];
+        function fetchReq() {
+        dataToBeSent[0]=arr;
+        L.polygon(arr, { color: "red" }).addTo(map);
+        console.log(JSON.stringify(dataToBeSent));
+        fetch("/foo", {
+          // Adding method type
+          method: "POST",
+
+          // Adding body or contents to send
+          body: JSON.stringify(dataToBeSent),
+
+          // Adding headers to the request
+          headers: {
+            "Content-type": "application/json; charset=UTF-8",
+          },
+        })
+          // Converting to JSON
+          .then((response) => response.json())
+
+          // Displaying results to console
+          .then((json) => console.log(json));
+          
+      }
+
+      
+      
+      function displayPath() {
+        fetch("/path")
+          .then((data) => {
+            return data.json();
+          })
+          .then((post) => {
+            console.log(post);
+            var polyline_ = L.polyline(post.track, { color: "yellow"}).addTo(map);
+              // L.polyline(post.track.slice(0,3), {color :"green"}).addTo(map);
+            L.marker(post.track[0]).addTo(map);           
+ map.fitBounds(polyline_.getBounds());
+       }); 
+}
+        
+        
+    </script>
+
+</body>
+</html>

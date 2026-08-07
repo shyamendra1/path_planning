@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Implement List</title>
+
+<style>
+body{
+    font-family: Arial;
+    background:#f4f6f8;
+    text-align:center;
+    padding-top:40px;
+}
+
+h2{
+    margin-bottom:20px;
+}
+
+.add-btn{
+    padding:12px 20px;
+    font-size:16px;
+    background:green;
+    color:white;
+    border:none;
+    border-radius:8px;
+    cursor:pointer;
+    margin-bottom:20px;
+}
+
+.container{
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:center;
+}
+
+.card{
+    width:260px;
+    background:white;
+    margin:15px;
+    padding:20px;
+    border-radius:10px;
+    box-shadow:0px 0px 10px rgba(0,0,0,0.2);
+    text-align:left;
+    position:relative;
+}
+
+.delete-btn{
+    position:absolute;
+    top:10px;
+    right:10px;
+    background:red;
+    color:white;
+    border:none;
+    border-radius:6px;
+    padding:5px 8px;
+    cursor:pointer;
+    font-size:12px;
+}
+button{
+    padding:10px 15px;
+    margin:5px;
+    border:none;
+    border-radius:6px;
+    color:white;
+    cursor:pointer;
+}
+
+.top-bar{
+    background:white;
+    padding:10px;
+    box-shadow:0px 2px 5px rgba(0,0,0,0.2);
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    position:relative;
+    margin-bottom:20px;
+}
+
+.top-bar h2{
+    margin:0;
+}
+
+.back-btn{
+    position:absolute;
+    left:10px;
+    background:gray;
+    color:white;
+    padding:8px 12px;
+    border:none;
+    border-radius:6px;
+    cursor:pointer;
+}
+</style>
+</head>
+
+<body>
+
+<div class="top-bar">
+    <button class="back-btn" onclick="goBack()">⬅ Back</button>
+    <h2>🛠️ Implements</h2>
+</div>
+
+<button class="add-btn" onclick="addImplement()">+ Add Implement</button>
+<div class="container" id="implementContainer"></div>
+
+<script>
+
+function addImplement()
+{
+    window.location.href = "/implement/addimplement"
+}
+function goBack()
+{
+    window.location.href = "/home";
+}
+
+async function loadImplements()
+{
+    const response = await fetch("/implement/get_implements")
+    const data = await response.json()
+
+    const container = document.getElementById("implementContainer")
+    container.innerHTML = ""
+
+    if(data.length === 0)
+    {
+        container.innerHTML = "<p>No implements saved</p>"
+        return
+    }
+
+    data.forEach(imp => {
+
+        const card = document.createElement("div")
+        card.className = "card"
+
+        card.innerHTML = `
+            <button class="delete-btn" onclick="deleteImplement('${imp.name}')">X</button>
+            <h3>${imp.name}</h3>
+            <p><b>Type:</b> ${imp.type}</p>
+            <p><b>Width:</b> ${imp.width} m</p>
+        `
+
+        container.appendChild(card)
+    })
+}
+
+async function deleteImplement(name)
+{
+    if(!confirm("Delete " + name + " ?")) return
+
+    const response = await fetch("/implement/delete_implement",{
+        method:"POST",
+        headers:{
+            "Content-Type":"application/json"
+        },
+        body: JSON.stringify({name:name})
+    })
+
+    const result = await response.json()
+
+    if(result.status === "deleted")
+    {
+        loadImplements()  // 🔁 refresh UI
+    }
+    else
+    {
+        alert("Error deleting")
+    }
+}
+
+loadImplements()
+
+</script>
+
+</body>
+</html>

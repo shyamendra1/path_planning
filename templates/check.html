@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>System Check Panel</title>
+
+<style>
+body{
+    font-family: Arial;
+    text-align:center;
+    margin-top:80px;
+}
+
+button{
+    width:250px;
+    height:60px;
+    margin:10px;
+    font-size:18px;
+    border:none;
+    border-radius:10px;
+    background-color:gray;
+    color:white;
+    cursor:pointer;
+}
+
+.green{
+    background-color:green !important;
+}
+
+.red{
+    background-color:red !important;
+}
+
+.nav-button {
+  position: fixed;
+  top: 10px;    /* Distance from top */
+  right: 10px;  /* Distance from right */
+  z-index: 99; 
+  width:auto;
+  background : red;
+  
+}
+
+</style>
+</head>
+
+<body>
+
+  <h2>System Status Check</h2>
+
+ <button class="nav-button" onclick="" > Logout ➜]</button>
+
+<button id="steering" onclick="runCheck('steering')">Check Steering Response</button><br>
+
+<button id="gnssBtn" onclick="toggleGNSS()">Loading...</button><br>
+
+<button id="ntrip" onclick="runCheck('ntrip')">Check NTRIP Status</button><br>
+
+<button id="setntrip" onclick="ntrip()">Set NTRIP Client</button><br>
+
+<button id="viewgnss" onclick="gnssdata()">GNSS data visualizer</button><br>
+
+<button id="goahead" onclick="goNext()">Go Ahead</button>
+
+<script>
+
+function ntrip()
+{
+    window.location.href="/ntrip"
+}
+
+function gnssdata()
+{
+    window.location.href="/gnssdata/home"
+}
+
+
+function goNext()
+{
+    window.location.href="/home"
+}
+
+// ---------------- CHECK BUTTONS ----------------
+async function runCheck(type)
+{
+    const btn = document.getElementById(type)
+
+    btn.style.backgroundColor = "orange"
+
+    try {
+        const response = await fetch(`/check/${type}`)
+        const data = await response.json()
+        console.log(data);
+        btn.classList.remove("green", "red")
+
+        if(data.status === "ok")
+        {
+            btn.classList.add("green")
+        }
+        else
+        {
+            btn.classList.add("red")
+        }
+    }
+    catch(e)
+    {
+        btn.classList.add("red")
+    }
+}
+
+// ---------------- GNSS SYNC ----------------
+async function syncGNSS()
+{
+    const btn = document.getElementById("gnssBtn");
+
+    try {
+        const res = await fetch("/status/gnss");
+        const data = await res.json();
+
+        btn.classList.remove("green", "red");
+
+        if (data.status === "running")
+        {
+            btn.innerText = "Stop GNSS Data";
+            btn.classList.add("green");
+        }
+        else
+        {
+            btn.innerText = "Start GNSS Data";
+            btn.classList.add("red");
+        }
+    }
+    catch (e)
+    {
+        btn.innerText = "GNSS Error";
+        btn.classList.add("red");
+    }
+}
+
+// ---------------- GNSS TOGGLE ----------------
+async function toggleGNSS()
+{
+    const btn = document.getElementById("gnssBtn");
+
+    btn.style.backgroundColor = "orange";
+
+    try {
+
+        const statusRes = await fetch("/status/gnss");
+        const statusData = await statusRes.json();
+
+        let url = (statusData.status === "running")
+            ? "/stop_gnss"
+            : "/start_gnss";
+
+        const res = await fetch(url);
+        const data = await res.json();
+
+        // re-sync UI
+        syncGNSS();
+    }
+    catch (err)
+    {
+        btn.classList.add("red");
+    }
+}
+
+// ---------------- INIT ----------------
+window.onload = function()
+{
+    syncGNSS();   
+}
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>GNSS Dashboard</title>
+
+<style>
+body {
+    margin: 0;
+    font-family: 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg, #0f172a, #020617);
+    color: white;
+}
+
+/* Header */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 25px;
+    background: rgba(255,255,255,0.05);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.title {
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.status-bar span {
+    margin-left: 20px;
+    font-size: 14px;
+}
+
+/* Layout */
+.container {
+    padding: 20px;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+}
+
+/* Cards */
+.card {
+    background: rgba(255,255,255,0.05);
+    border-radius: 15px;
+    padding: 20px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+}
+
+.card h3 {
+    font-size: 14px;
+    opacity: 0.7;
+    margin-bottom: 10px;
+}
+
+.value {
+    font-size: 26px;
+    font-weight: bold;
+}
+
+/* Big cards */
+.big {
+    grid-column: span 2;
+    text-align: center;
+}
+
+.big .value {
+    font-size: 42px;
+}
+
+/* Compass */
+.compass {
+    font-size: 60px;
+    margin-top: 10px;
+    transition: transform 0.3s ease;
+}
+
+/* Status colors */
+.green { color: #22c55e; }
+.red { color: #ef4444; }
+.yellow { color: #eab308; }
+
+/* Footer */
+.footer {
+    text-align: center;
+    margin-top: 20px;
+    opacity: 0.6;
+}
+</style>
+</head>
+
+<body>
+
+<div class="header">
+    <div class="title"> GNSS Control Dashboard</div>
+    <div class="status-bar">
+        <span>RTK: <b id="quality">--</b></span>
+        <span>Sats: <b id="sats">--</b></span>
+        <span>Conn: <b id="status">Connecting...</b></span>
+    </div>
+</div>
+
+<div class="container">
+    <div class="grid">
+
+        <div class="card big">
+            <h3>Speed</h3>
+            <div class="value" id="speed">--</div>
+        </div>
+
+        <div class="card big">
+            <h3>Heading</h3>
+            <div class="value" id="head">--°</div>
+            
+        </div>
+
+        <div class="card">
+            <h3>Latitude</h3>
+            <div class="value" id="lat">--</div>
+        </div>
+
+        <div class="card">
+            <h3>Longitude</h3>
+            <div class="value" id="lon">--</div>
+        </div>
+
+        <div class="card">
+            <h3>Time</h3>
+            <div class="value" id="time">--</div>
+        </div>
+
+    </div>
+
+    <div class="footer">
+        Real-time GNSS Stream
+    </div>
+</div>
+
+<script>
+const statusEl = document.getElementById("status");
+
+function getQualityLabel(q) {
+    switch(q) {
+        case 0: return "Invalid";
+        case 1: return "GPS";
+        case 2: return "DGPS";
+        case 4: return "RTK FIX";
+        case 5: return "RTK FLOAT";
+        default: return "Unknown";
+    }
+}
+
+function getVal(data, keys) {
+    for (let k of keys) {
+        if (data[k] !== undefined) return data[k];
+    }
+}
+
+function updateUI(data) {
+    const lat = getVal(data, ["latitude", "Latitude"]);
+    const lon = getVal(data, ["longitude", "Longitude"]);
+    const speed = getVal(data, ["speed", "Speed"]);
+    const head = getVal(data, ["head", "Head"]);
+    const sats = getVal(data, ["Number of Satellite", "satellites"]);
+    const quality = getVal(data, ["quality", "Quality"]);
+    const time = getVal(data, ["time", "Time"]);
+
+    document.getElementById("lat").textContent = lat?.toFixed(7) || "--";
+    document.getElementById("lon").textContent = lon?.toFixed(7) || "--";
+    document.getElementById("speed").textContent = speed ?? "--";
+    document.getElementById("head").textContent = head ? head + "°" : "--";
+    document.getElementById("sats").textContent = sats ?? "--";
+    document.getElementById("time").textContent = time ?? "--";
+
+    let qText = getQualityLabel(quality);
+    let qEl = document.getElementById("quality");
+    qEl.textContent = qText;
+    qEl.className = "";
+
+    if (quality === 4) qEl.classList.add("green");
+    else if (quality >= 1) qEl.classList.add("yellow");
+    else qEl.classList.add("red");
+
+  
+}
+
+// SSE connection
+function connect() {
+    const es = new EventSource("/gnssdata/livelocation");
+
+    es.onopen = () => {
+        statusEl.textContent = "LIVE";
+        statusEl.className = "green";
+    };
+
+    es.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            if (Object.keys(data).length) {
+                updateUI(data);
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    es.onerror = () => {
+        statusEl.textContent = "RECONNECTING";
+        statusEl.className = "red";
+        es.close();
+        setTimeout(connect, 2000);
+    };
+}
+
+connect();
+</script>
+
+</body>
+</html>

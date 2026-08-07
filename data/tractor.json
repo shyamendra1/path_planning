@@ -1,0 +1,17 @@
+[
+    {
+        "name": "ft6065",
+        "wheelbase": 2.2,
+        "radius": 4.0
+    },
+    {
+        "name": "test_2",
+        "wheelbase": 2.0,
+        "radius": 3.5
+    },
+    {
+        "name": "ft60651",
+        "wheelbase": 2.2,
+        "radius": 4.4
+    }
+]

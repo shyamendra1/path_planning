@@ -1,0 +1,17 @@
+{
+  "gnss": {
+    "path": "/home/ubuntu/cors_ntrip",
+    "proc_name": "./obj/cr",
+    "args": ["123456"]
+  },
+  "ntrip": {
+    "path": "data/",
+    "proc_name": "../obj/test",
+    "args": []
+  },
+  "path_follow": {
+    "path": "data/",
+    "proc_name": "./test_points_can",
+    "args": []
+  }
+}

@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Farm List</title>
+
+<style>
+body{
+    font-family: Arial;
+    background:#f4f6f8;
+    text-align:center;
+    padding-top:40px;
+}
+
+h2{
+    margin-bottom:20px;
+}
+
+.add-btn{
+    padding:12px 20px;
+    font-size:16px;
+    background:green;
+    color:white;
+    border:none;
+    border-radius:8px;
+    cursor:pointer;
+    margin-bottom:20px;
+}
+
+.container{
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:center;
+}
+
+.card{
+    width:260px;
+    background:white;
+    margin:15px;
+    padding:20px;
+    border-radius:10px;
+    box-shadow:0px 0px 10px rgba(0,0,0,0.2);
+    text-align:left;
+    position:relative;
+}
+
+.delete-btn{
+    position:absolute;
+    top:10px;
+    right:10px;
+    background:red;
+    color:white;
+    border:none;
+    border-radius:6px;
+    padding:5px 8px;
+    cursor:pointer;
+    font-size:12px;
+}
+
+.view-btn{
+    margin-top:10px;
+    padding:8px;
+    background:blue;
+    color:white;
+    border:none;
+    border-radius:6px;
+    cursor:pointer;
+    width:100%;
+}
+button{
+    padding:10px 15px;
+    margin:5px;
+    border:none;
+    border-radius:6px;
+    color:white;
+    cursor:pointer;
+}
+.back-btn{ background:gray; }
+.top-bar{
+    background:white;
+    padding:10px;
+    box-shadow:0px 2px 5px rgba(0,0,0,0.2);
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    position:relative;
+    margin-bottom:20px;
+}
+
+.top-bar h2{
+    margin:0;
+}
+
+.back-btn{
+    position:absolute;
+    left:10px;
+    background:gray;
+    color:white;
+    padding:8px 12px;
+    border:none;
+    border-radius:6px;
+    cursor:pointer;
+}
+</style>
+</head>
+
+<body>
+
+<div class="top-bar">
+    <button class="back-btn" onclick="goBack()">⬅ Back</button>
+    <h2>🌾 Farms</h2>
+</div>
+
+<button class="add-btn" onclick="addFarm()">+ Add Farm</button>
+
+
+<div class="container" id="farmContainer"></div>
+
+<script>
+
+function addFarm()
+{
+    window.location.href = "/farm/addfarms"
+}
+
+// ---------- calculate center ----------
+function getCenter(points)
+{
+    let lat = 0, lng = 0;
+
+    points.forEach(p => {
+        lat += p[0];
+        lng += p[1];
+    });
+
+    return [
+        (lat / points.length).toFixed(6),
+        (lng / points.length).toFixed(6)
+    ];
+}
+
+// ---------- load farms ----------
+async function loadFarms()
+{
+    const response = await fetch("/farm/get_farms")
+    const data = await response.json()
+
+    const container = document.getElementById("farmContainer")
+    container.innerHTML = ""
+
+    if(data.length === 0)
+    {
+        container.innerHTML = "<p>No farms saved</p>"
+        return
+    }
+
+    data.forEach(farm => {
+
+        const center = getCenter(farm.boundary)
+
+        const card = document.createElement("div")
+        card.className = "card"
+
+        card.innerHTML = `
+            <button class="delete-btn" onclick="deleteFarm('${farm.name}')">X</button>
+
+            <h3>${farm.name}</h3>
+
+            <p><b>Approx Location:</b><br>
+            ${center[0]}, ${center[1]}</p>
+
+            <button class="view-btn" onclick="viewFarm('${farm.name}')">
+                View on Map
+            </button>
+        `
+
+        container.appendChild(card)
+    })
+}
+
+// ---------- delete ----------
+async function deleteFarm(name)
+{
+    if(!confirm("Delete " + name + " ?")) return
+
+    const response = await fetch("/farm/delete_farm",{
+        method:"POST",
+        headers:{
+            "Content-Type":"application/json"
+        },
+        body: JSON.stringify({name:name})
+    })
+
+    const result = await response.json()
+
+    if(result.status === "deleted")
+        loadFarms()
+    else
+        alert("Error deleting")
+}
+
+// ---------- view farm ----------
+function viewFarm(name)
+{
+    // optional: send farm name to backend or store locally
+    localStorage.setItem("selectedFarm", name)
+
+    window.location.href = "/farm/view_farm"
+}
+function goBack()
+{
+    window.location.href = "/home";
+}
+
+// load on start
+loadFarms()
+
+</script>
+
+</body>
+</html>
