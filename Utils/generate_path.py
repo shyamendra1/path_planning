@@ -191,6 +191,7 @@ class CoveragePlanner:
             else:
                 print("len ", len(pts))
                 print("it is a concave shape. it requires decomposition.")
+                tracks.append(pts)
                 
             current += self.width
 
@@ -369,6 +370,7 @@ class Path_plan:
         # self.turns=GenerateTurn()   
         # self.geofence = Geofence()
         self.field_name = field_name
+
         
     def path(self):
         tp, headland, bearing = self.path_planning(
@@ -403,8 +405,7 @@ class Path_plan:
         with open(self.savepath, "w") as file:
             json.dump(data, file, indent=4)
 
-        #print("Data saved to ",self.savepath)
-
+        #print("Data saved to ",self.savepath) 
     #------------------------------------------------------------------------------------------LOC
 
     def path_planning(
@@ -414,16 +415,13 @@ class Path_plan:
         turning_radius,
         tractor_wheelbase,
         bearing_override=None):
-
-        polygon = []
-
+        polygon=[]
         for edge in gcp:
             polygon.append(edge[0])
 
         headings = list(range(0, 180, 20))
 
         for i in range(len(polygon)):
-
             try:
 
                 edge_bearing = Geodesy.angle(
@@ -435,9 +433,6 @@ class Path_plan:
 
             except Exception:
                 pass
-
-        if bearing_override is not None:
-            headings = [bearing_override]
 
         best_tracks = []
         best_headland_polygon = []
@@ -457,31 +452,28 @@ class Path_plan:
                     )
                 )
 
-                planner = CoveragePlanner(
-                    headland_polygon,
-                    implement_width=Application_width,
-                    heading=heading
-                )
-
-                tracks = planner.generate_tracks()
-
-                score = len(tracks)
-
                 cost = Geodesy.area_of(headland_polygon)
 
                 if cost > cost_max:
                     cost_max = cost
-                    best_tracks = tracks
+                    
                     best_headland_polygon = headland_polygon
                     best_heading = heading
-
             except Exception as e:
 
                 print(
                     f"Heading {heading} failed: {e}"
                 )
 
-                continue
+                continue               
+
+        planner = CoveragePlanner(
+                    best_headland_polygon,
+                    Application_width,
+                    best_heading
+                )
+
+        tracks = planner.generate_tracks()
 
         h_gcpp = []
 
@@ -503,7 +495,7 @@ class Path_plan:
         print(f'No. of tracks: {len(best_tracks)}')
 
         return (
-            best_tracks,
+            tracks,
             h_gcpp,
             best_heading
         )
