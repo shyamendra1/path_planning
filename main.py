@@ -211,9 +211,14 @@ def path():
         gcp.append([[boundary[n - 1][0], boundary[n - 1][1]],
                     [boundary[n][0], boundary[n][1]]])
 
-
+    start_time = time.perf_counter()
+    
     out = Path_plan(gcp, save_path, width, radius, wheelbase, field_name)
     tp,head= out.path()
+    
+    end_time = time.perf_counter()
+    execution_time = end_time-start_time
+    print(f"Execution time = {execution_time:.4f} sec")
 
     return jsonify({"track":tp ,"head":head})
   
