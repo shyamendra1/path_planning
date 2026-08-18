@@ -136,66 +136,277 @@ class CoveragePlanner:
         self.heading = heading
         self.width = implement_width
 
-    def generate_tracks(self):
+    def _longest_edge_reference(self):
 
-        reference = self.polygon.vertices[0]
+        max_len = -1
+        longest_start = None
+        longest_end = None
 
-        reference_end = Geodesy.points(
-            reference,
-            100,
-            self.heading
+        verts = self.polygon.vertices
+
+        for i in range(len(verts)):
+
+            p1 = verts[i]
+            p2 = verts[(i + 1) % len(verts)]
+
+            edge_len = Geodesy.distancebet(
+                p1,
+                p2
+            )
+
+            if edge_len > max_len:
+
+                max_len = edge_len
+                longest_start = p1
+                longest_end = p2
+
+        midpoint = Geodesy.midPoint(
+            longest_start,
+            longest_end
+        )[1]
+
+        edge_heading = Geodesy.angle(
+            longest_start,
+            longest_end
+        )[0]
+
+        offset_heading = (edge_heading + 90) % 360
+
+        print("Longest Edge Start:", longest_start)
+        print("Longest Edge End:", longest_end)
+        print("Longest Edge Length:", max_len)
+        print("Edge Heading:", edge_heading)
+        print("Offset Heading:", offset_heading)
+        print("Midpoint:", midpoint)
+
+        return (
+            longest_start,
+            longest_end,
+            midpoint,
+            edge_heading,
+            offset_heading
         )
 
-        distances = []
+    def _normalize_intersections(self, pts):
+
+        if len(pts) < 2:
+            return None
+
+        if len(pts) == 2:
+            return pts
+
+        #
+        # If a swath passes through a polygon
+        # vertex, 3 intersections are possible.
+        #
+        # Choose the longest valid segment.
+        #
+        max_dist = -1
+        best_pair = None
+
+        for i in range(len(pts)):
+            for j in range(i + 1, len(pts)):
+
+                d = Geodesy.distancebet(
+                    pts[i],
+                    pts[j]
+                )
+
+                if d > max_dist:
+
+                    max_dist = d
+                    best_pair = [
+                        pts[i],
+                        pts[j]
+                    ]
+
+        return best_pair
+
+    def _normalize_track_direction(
+        self,
+        pts,
+        edge_heading
+    ):
+
+        if pts is None:
+            return None
+
+        bearing = Geodesy.angle(
+            pts[0],
+            pts[1]
+        )[0]
+
+        diff = abs(
+            Geodesy.norm_180(
+                bearing - edge_heading
+            )
+        )
+
+        if diff > 90:
+            return [
+                pts[1],
+                pts[0]
+            ]
+
+        return pts
+
+    def generate_tracks(self):
+
+        (
+            longest_start,
+            longest_end,
+            midpoint,
+            edge_heading,
+            offset_heading
+        ) = self._longest_edge_reference()
+
+        #
+        # Measure polygon extents
+        # along perpendicular axis.
+        #
+        projections = []
 
         for v in self.polygon.vertices:
 
-            d = Geodesy.cross_track_distance(
-                v,
-                reference,
-                reference_end
+            dist = Geodesy.distancebet(
+                midpoint,
+                v
             )
 
-            distances.append(d)
+            bearing = Geodesy.angle(
+                midpoint,
+                v
+            )[0]
 
-        min_offset = min(distances)
-        max_offset = max(distances)
+            delta = math.radians(
+                bearing - offset_heading
+            )
 
-        
+            projection = dist * math.cos(delta)
+
+            projections.append(projection)
+
+        min_offset = min(projections)
+        max_offset = max(projections)
 
         #
-        # First pass
+        # Store:
+        # (offset_value, track)
         #
+        track_data = []
 
-        current = min_offset + self.width / 2
+        #
+        # Center swath
+        #
+        center_pts = self.polygon.intersect_track(
+            midpoint,
+            edge_heading
+        )
 
-        tracks = []
+        center_pts = self._normalize_intersections(
+            center_pts
+        )
 
-        while current <= max_offset:
+        center_pts = self._normalize_track_direction(
+            center_pts,
+            edge_heading
+        )
+
+        if center_pts is not None:
+            track_data.append(
+                (0.0, center_pts)
+            )
+
+        #
+        # Positive direction
+        #
+        step = self.width
+
+        while step <= max_offset + self.width:
 
             shifted_point = Geodesy.points(
-                reference,
-                current,
-                self.heading + 90
+                midpoint,
+                step,
+                offset_heading
             )
 
             pts = self.polygon.intersect_track(
                 shifted_point,
-                self.heading
+                edge_heading
             )
-            
 
-            if len(pts) == 2:
+            pts = self._normalize_intersections(
+                pts
+            )
 
-                tracks.append(pts)
-            else:
-                print("len ", len(pts))
-                print("it is a concave shape. it requires decomposition.")
-                tracks.append(pts)
-                
-            current += self.width
+            pts = self._normalize_track_direction(
+                pts,
+                edge_heading
+            )
+
+            if pts is not None:
+                track_data.append(
+                    (step, pts)
+                )
+
+            step += self.width
+
+        #
+        # Negative direction
+        #
+        step = self.width
+
+        while step <= abs(min_offset) + self.width:
+
+            shifted_point = Geodesy.points(
+                midpoint,
+                step,
+                (offset_heading + 180) % 360
+            )
+
+            pts = self.polygon.intersect_track(
+                shifted_point,
+                edge_heading
+            )
+
+            pts = self._normalize_intersections(
+                pts
+            )
+
+            pts = self._normalize_track_direction(
+                pts,
+                edge_heading
+            )
+
+            if pts is not None:
+                track_data.append(
+                    (-step, pts)
+                )
+
+            step += self.width
+
+        #
+        # Sort tracks spatially.
+        #
+        track_data.sort(
+            key=lambda x: x[0]
+        )
+
+        tracks = [
+            item[1]
+            for item in track_data
+        ]
+
+
+        for i, trk in enumerate(tracks):
+
+            midpoint_track = Geodesy.midPoint(
+                trk[0],
+                trk[1]
+            )[1]
 
         return tracks
+
      
 class Headland:
 
