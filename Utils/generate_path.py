@@ -7,6 +7,7 @@ from Utils.helper.geodesy import Geodesy
 from Utils.helper.turn_generation import GenerateTurn
 from Utils.helper.generate_headland import GenerateHeadland
 from Utils.helper.geofence import Geofence
+from Utils.helper.headland_generator import ModernHeadlandGenerator
 import csv
 
 class Polygon:
@@ -407,165 +408,54 @@ class CoveragePlanner:
 
         return tracks
 
-     
+      
 class Headland:
-
-    @staticmethod
-    def signed_turn(prev, curr, nxt):
-        """
-        >0 : left turn
-        <0 : right turn
-        """
-        x1 = curr[1] - prev[1]
-        y1 = curr[0] - prev[0]
-
-        x2 = nxt[1] - curr[1]
-        y2 = nxt[0] - curr[0]
-
-        return x1 * y2 - y1 * x2
-
-    @staticmethod
-    def polygon_clockwise(poly):
-        area = 0
-
-        for i in range(len(poly)):
-            x1, y1 = poly[i][1], poly[i][0]
-            x2, y2 = poly[(i + 1) % len(poly)][1], poly[(i + 1) % len(poly)][0]
-
-            area += x1 * y2 - x2 * y1
-
-        return area < 0
-
-    @staticmethod
-    def offset_edge(edge_start, edge_end, track_heading, width, turning_radius):
-
-        edge_heading = Geodesy.angle(edge_start, edge_end)[0]
-
-        normal = (edge_heading + 90) % 360
-
-        theta = (math.radians(track_heading - edge_heading))
-
-        
-        offset = (abs(sin(theta))+1) * turning_radius + width/2
-        #print(offset, edge_heading, theta)
-        s = Geodesy.points(edge_start, offset, normal)
-        e = Geodesy.points(edge_end, offset, normal)
-        
-        
-        
-        offseth =  (width/2)*abs(sin(theta))
-        #print(offseth)
-        #print(offset, edge_heading, theta)
-        sh = Geodesy.points(edge_start, offseth, normal)
-        eh = Geodesy.points(edge_end, offseth, normal)       
-        
-
-        return s, e, edge_heading, sh, eh , edge_heading
+    """
+    Production-grade headland generation.
+    Uses ModernHeadlandGenerator (Shapely-based offsetting).
+    This class maintains backward compatibility while providing robust edge case handling.
+    """
 
     @staticmethod
     def build_headland(polygon, track_heading, width, turning_radius):
-
-        n = len(polygon)
-
-        clockwise = Headland.polygon_clockwise(polygon)
-
-        offset_edges = []
+        """
+        Generate headland using industry-standard algorithms.
         
-        headland_pass =[]
-
-        for i in range(n):
-
-            a = polygon[i]
-            b = polygon[(i + 1) % n]
-            h=Headland.offset_edge(
-                    a,
-                    b,
-                    track_heading,
-                    width,
-                    turning_radius
-                )
-
-            offset_edges.append(h[:3])
+        This replaces the previous edge-intersection approach with:
+        1. Shapely buffer (primary method) - handles all edge cases
+        2. Geodetic fallback - works without external libraries
+        
+        Parameters:
+        -----------
+        polygon : list of [lat, lon]
+            Field boundary vertices
+        track_heading : float (degrees)
+            Primary track direction
+        width : float (meters)
+            Implement width
+        turning_radius : float (meters)
+            Tractor turning radius
+        
+        Returns:
+        --------
+        tuple: (headland_points, headland_pass_points)
+            Both lists contain [lat, lon] vertices
+        """
+        
+        try:
+            headland, hpass = ModernHeadlandGenerator.build_headland_robust(
+                polygon,
+                track_heading,
+                width,
+                turning_radius
+            )
+            return headland, hpass
             
-            headland_pass.append(h[3:])
-            
-            
-
-        headland = []
-        hpass =[]
-        for i in range(n):
-
-            prev = polygon[(i - 1) % n]
-            curr = polygon[i]
-            nxt  = polygon[(i + 1) % n]
-
-            turn = Headland.signed_turn(prev, curr, nxt)
-
-            if clockwise:
-                convex = turn < 0
-            else:
-                convex = turn > 0
-
-            prev_start, prev_end, prev_heading = offset_edges[(i - 1) % n]
-            next_start, next_end, next_heading = offset_edges[i]
-
-
-            pprev_start, pprev_end, pprev_heading = headland_pass[(i - 1) % n]
-            pnext_start, pnext_end, pnext_heading = headland_pass[i]
-            
-            #
-            # convex -> intersect
-            #
-            if convex:
-
-                try:
-
-                    pt = Geodesy.intersection(
-                        prev_start[0],
-                        prev_start[1],
-                        prev_heading,
-
-                        next_start[0],
-                        next_start[1],
-                        next_heading
-                    )
-                    
-                    
-
-                    headland.append(list(pt))
-                except ValueError:
-
-                    headland.append(prev_end)
-
-
-                try:
-                    ppt = Geodesy.intersection(
-                        pprev_start[0],
-                        pprev_start[1],
-                        pprev_heading,
-
-                        pnext_start[0],
-                        pnext_start[1],
-                        pnext_heading
-                    )
-                    
-                    hpass.append(list(ppt))
-                except ValueError:
-
-                    hpass.append(pprev_end)                    
-                    
-            #
-            # concave -> no intersection
-            #
-            else:
-
-                headland.append(prev_end)
-                headland.append(next_start)
-                
-                hpass.append(pprev_end)
-                hpass.append(pnext_start)
-        headland, hpass
-        return headland, hpass
+        except Exception as e:
+            print(f"❌ Headland generation failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return [], []
 
 
 class Path_plan:
@@ -663,6 +553,9 @@ class Path_plan:
                     )
                 )
 
+                if not headland_polygon:
+                    continue
+
                 cost = Geodesy.area_of(headland_polygon)
 
                 if cost > cost_max:
@@ -677,6 +570,10 @@ class Path_plan:
                 )
 
                 continue               
+
+        if not best_headland_polygon:
+            print("❌ No valid headland generated for any heading")
+            return [], [], None
 
         planner = CoveragePlanner(
                     best_headland_polygon,
@@ -702,9 +599,13 @@ class Path_plan:
         print(
             f"Selected heading: {best_heading}"
         )
-        area_field = Geodesy.area_of(headland_polygon)/10000
-        print(f'No. of tracks: {len(tracks)}')
-        print(f'Area = {area_field:.3f} ha')
+        
+        try:
+            area_field = Geodesy.area_of(best_headland_polygon)/10000
+            print(f'No. of tracks: {len(tracks)}')
+            print(f'Area = {area_field:.3f} ha')
+        except:
+            print(f'No. of tracks: {len(tracks)}')
 
         return (
             tracks,
