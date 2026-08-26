@@ -9,6 +9,10 @@ field headland generation. It handles:
 - Self-intersecting polygons
 
 Used by QGIS, PostGIS, and professional agriculture software.
+
+CUSTOMIZATION NOTES:
+- To offset INWARD (inside polygon): use NEGATIVE offset_distance
+- To offset OUTWARD (outside polygon): use POSITIVE offset_distance
 """
 
 import math
@@ -24,12 +28,19 @@ class ModernHeadlandGenerator:
     Handles closed points, bottlenecks, and acute angles robustly.
     
     Uses Shapely for offsetting, which is proven in CAD/GIS software worldwide.
+    
+    OFFSET DIRECTION:
+    - Negative buffer = INWARD (inside the field boundary)
+    - Positive buffer = OUTWARD (outside the field boundary)
     """
     
     MIN_OFFSET_DISTANCE = 0.1  # 10cm minimum safe offset
     MIN_VERTEX_SEPARATION = 0.5  # 50cm minimum between vertices
     MAX_OFFSET_SPIKE = 5.0  # Reject offsets > 5x the requested offset
     SIMPLIFICATION_TOLERANCE = 0.05  # 5cm simplification
+    
+    # ✅ KEY SETTING: Set to True for INWARD (inside), False for OUTWARD (outside)
+    OFFSET_INWARD = True
     
     @staticmethod
     def buffer_polygon_shapely(polygon_coords, offset_distance, resolution=8):
@@ -44,6 +55,8 @@ class ModernHeadlandGenerator:
         
         Returns:
         - list of [lat, lon] vertices of offset polygon
+        
+        NOTE: Negative offset = inward, Positive offset = outward
         """
         
         if len(polygon_coords) < 3:
@@ -65,9 +78,14 @@ class ModernHeadlandGenerator:
             if not poly.is_valid:
                 poly = poly.buffer(0)  # Fix self-intersections
             
+            # ✅ INVERT SIGN for INWARD offset
+            actual_offset = offset_distance
+            if ModernHeadlandGenerator.OFFSET_INWARD:
+                actual_offset = -offset_distance  # Negative = inward
+            
             # Buffer (positive = outward, negative = inward)
             buffered = poly.buffer(
-                offset_distance,
+                actual_offset,
                 resolution=resolution,
                 join_style=2,  # Mitre join (sharp corners)
                 mitre_limit=2.0
@@ -101,6 +119,8 @@ class ModernHeadlandGenerator:
         Offset each edge independently, then resolve vertices.
         This is a FALLBACK when Shapely isn't available.
         More robust than basic offset approaches.
+        
+        ✅ For INWARD offset: negate the offset_distance direction
         """
         
         if len(polygon) < 3:
@@ -108,6 +128,10 @@ class ModernHeadlandGenerator:
         
         n = len(polygon)
         offset_distance = width / 2 + turning_radius
+        
+        # ✅ INVERT for INWARD offset
+        if ModernHeadlandGenerator.OFFSET_INWARD:
+            offset_distance = -offset_distance
         
         # Step 1: Offset each edge perpendicular to track
         offset_edges = []
@@ -153,7 +177,7 @@ class ModernHeadlandGenerator:
                 curr_edge['end'],
                 curr_edge['heading'],
                 angle,
-                offset_distance
+                abs(offset_distance)  # Use absolute value for distance checks
             )
             
             if intersection_pt:
@@ -273,6 +297,11 @@ class ModernHeadlandGenerator:
         
         Returns:
         - tuple: (headland_points, headland_pass_points)
+        
+        ⚙️  CONFIGURATION:
+        Change ModernHeadlandGenerator.OFFSET_INWARD to:
+        - True = Generate headland INSIDE the field boundary
+        - False = Generate headland OUTSIDE the field boundary
         """
         
         if len(polygon) < 3:
@@ -283,6 +312,8 @@ class ModernHeadlandGenerator:
         # Ensure minimum offset
         if offset_distance < ModernHeadlandGenerator.MIN_OFFSET_DISTANCE:
             offset_distance = ModernHeadlandGenerator.MIN_OFFSET_DISTANCE
+        
+        print(f"📍 Generating headland with offset={offset_distance:.2f}m (INWARD={ModernHeadlandGenerator.OFFSET_INWARD})")
         
         # Try Shapely-based method (most robust)
         try:
